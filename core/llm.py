@@ -1,11 +1,11 @@
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from config.settings import settings
 
 def load_llm():
-    """Load Groq LLM via OpenAI-compatible API"""
-    return ChatOpenAI(
+    """Load the Google Gemini LLM"""
+    # The deprecated 'convert_system_message_to_human' parameter has been removed.
+    return ChatGoogleGenerativeAI(
         model=settings.MODEL,
         temperature=settings.TEMPERATURE,
-        api_key=settings.GROQ_API_KEY,
-        base_url=settings.BASE_URL,
+        google_api_key=settings.GOOGLE_API_KEY,
     )

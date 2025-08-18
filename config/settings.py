@@ -1,3 +1,5 @@
+# In settings.py
+
 import os
 from dotenv import load_dotenv, find_dotenv
 
@@ -5,9 +7,9 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 class Settings:
-    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY")
-    BASE_URL: str = "https://api.groq.com/openai/v1"
-    MODEL: str = "llama3-70b-8192"
+    GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY")
+    # Using a faster, more efficient model to respect free tier limits
+    MODEL: str = "gemini-1.5-flash-latest"
     TEMPERATURE: float = 0.2
 
 settings = Settings()
