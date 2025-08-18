@@ -94,10 +94,16 @@ async def chat_endpoint(request: ChatRequest):
             
             final_response = translate_back(final_response, original_lang)
 
-        chat_histories[session_id].append({"type": "human", "content": query})
-        chat_histories[session_id].append({"type": "ai", "content": final_response})
+        # --- THIS IS THE FIX ---
+        # Clean up markdown formatting before sending the response.
+        # This removes bolding (**) and converts list items (*) to simple text lines.
+        cleaned_response = final_response.replace('**', '').replace('* ', '\n- ')
+        # ---------------------
 
-        return {"response": final_response, "session_id": session_id}
+        chat_histories[session_id].append({"type": "human", "content": query})
+        chat_histories[session_id].append({"type": "ai", "content": cleaned_response})
+
+        return {"response": cleaned_response, "session_id": session_id}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
