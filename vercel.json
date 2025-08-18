@@ -1,4 +1,11 @@
 {
+  "builds": [
+    {
+      "src": "/api/index.py",
+      "use": "@vercel/python",
+      "config": { "maxLambdaSize": "100mb" }
+    }
+  ],
   "rewrites": [
     {
       "source": "/chat",
