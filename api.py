@@ -54,8 +54,6 @@ async def startup_event():
     models["classifier_chain"] = prompt | llm | StrOutputParser()
     print("--- Models loaded successfully. API is ready. ---")
 
-# --- THIS IS THE FIX ---
-# This function now returns a list of strings, where each string is a line.
 def clean_and_split_for_ui(text: str) -> List[str]:
     """
     Strips markdown and splits the text into a list of lines for easy UI rendering.
@@ -72,7 +70,6 @@ def clean_and_split_for_ui(text: str) -> List[str]:
     # Split the cleaned text into a list of lines and remove any empty lines
     lines = text.strip().split('\n')
     return [line.strip() for line in lines if line.strip()]
-# ---------------------
 
 # --- API Endpoint ---
 @app.post("/chat", summary="Get a response from Agri-Bot")
@@ -118,11 +115,17 @@ async def chat_endpoint(request: ChatRequest):
         # Clean the response and split it into a list of lines
         cleaned_response_lines = clean_and_split_for_ui(final_response)
 
-        # Join the lines back together for storing in history, but send the list in the response
-        chat_histories[session_id].append({"type": "human", "content": query})
-        chat_histories[session_id].append({"type": "ai", "content": "\n".join(cleaned_response_lines)})
+        # --- THIS IS THE FIX ---
+        # Join the lines back together into a single string with newline characters
+        full_response_string = "\n".join(cleaned_response_lines)
+        # ---------------------
 
-        return {"response": cleaned_response_lines, "session_id": session_id}
+        # Save the full string to history
+        chat_histories[session_id].append({"type": "human", "content": query})
+        chat_histories[session_id].append({"type": "ai", "content": full_response_string})
+
+        # Return the full string in the JSON response
+        return {"response": full_response_string, "session_id": session_id}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
