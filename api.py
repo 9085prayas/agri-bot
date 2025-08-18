@@ -1,4 +1,5 @@
 import asyncio
+import re
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict
@@ -53,6 +54,26 @@ async def startup_event():
     models["classifier_chain"] = prompt | llm | StrOutputParser()
     print("--- Models loaded successfully. API is ready. ---")
 
+# --- THIS IS THE FIX ---
+# This function now returns a list of strings, where each string is a line.
+def clean_and_split_for_ui(text: str) -> List[str]:
+    """
+    Strips markdown and splits the text into a list of lines for easy UI rendering.
+    """
+    # Remove bolding
+    text = text.replace('**', '')
+    # Replace markdown list items with a dash
+    text = re.sub(r'^\* ', '- ', text, flags=re.MULTILINE)
+    # Replace markdown headings
+    text = re.sub(r'^### ', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^## ', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^# ', '', text, flags=re.MULTILINE)
+
+    # Split the cleaned text into a list of lines and remove any empty lines
+    lines = text.strip().split('\n')
+    return [line.strip() for line in lines if line.strip()]
+# ---------------------
+
 # --- API Endpoint ---
 @app.post("/chat", summary="Get a response from Agri-Bot")
 async def chat_endpoint(request: ChatRequest):
@@ -94,16 +115,14 @@ async def chat_endpoint(request: ChatRequest):
             
             final_response = translate_back(final_response, original_lang)
 
-        # --- THIS IS THE FIX ---
-        # Clean up markdown formatting before sending the response.
-        # This removes bolding (**) and converts list items (*) to simple text lines.
-        cleaned_response = final_response.replace('**', '').replace('* ', '\n- ')
-        # ---------------------
+        # Clean the response and split it into a list of lines
+        cleaned_response_lines = clean_and_split_for_ui(final_response)
 
+        # Join the lines back together for storing in history, but send the list in the response
         chat_histories[session_id].append({"type": "human", "content": query})
-        chat_histories[session_id].append({"type": "ai", "content": cleaned_response})
+        chat_histories[session_id].append({"type": "ai", "content": "\n".join(cleaned_response_lines)})
 
-        return {"response": cleaned_response, "session_id": session_id}
+        return {"response": cleaned_response_lines, "session_id": session_id}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
