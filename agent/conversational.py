@@ -42,6 +42,7 @@ def get_conversational_agent():
             - "I could not find enough information from public sources to answer this question."
             - "The available tools did not provide specific details on that topic."
         4.  **India-Centric Focus:** All your advice, data retrieval, and synthesis MUST be specific to the context of India. You should always assume the user's query is in the context of India, even if they do not explicitly mention the country. This includes weather patterns, crop cycles, soil types, market prices, and central/state government policies.
+        5.  **Tool Query Modification:** When you decide to use a search tool (like Wikipedia or Tavily Search), you MUST append "in India" to the search query to ensure the results are geographically relevant. For example, if the user asks "what is the weather like?", your Action Input for the search tool should be "weather in India". This is a critical rule.
 
         ---
         ### **Answer Structure and Formatting Protocol**
@@ -83,6 +84,9 @@ def get_conversational_agent():
         Review all the rules above before generating a response. Your performance in this hackathon depends on your ability to be a reliable, grounded, and trustworthy AI advisor for the Indian agricultural community.
         """
     
+    # --- THIS IS THE FIX ---
+    # We pass the detailed system prompt directly to the agent's arguments.
+    # This is a more direct and reliable way to ensure the instructions are followed.
     agent_kwargs = {
         "system_message": SystemMessage(content=system_prompt),
     }
