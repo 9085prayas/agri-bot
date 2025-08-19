@@ -58,13 +58,25 @@ async def startup_event():
     models["classifier_chain"] = classifier_prompt | llm | StrOutputParser()
 
     # --- THIS IS THE FIX ---
-    # New chain to generate follow-up suggestions
+    # New, more detailed prompt for generating high-quality suggestions.
     suggestion_prompt = PromptTemplate.from_template(
-        "Based on the user's query and the bot's response, generate 3 short, relevant follow-up questions that the user might ask next. "
-        "Return the questions as a comma-separated list. Do not include numbers or bullet points.\n\n"
+        "You are an expert AI assistant for an agricultural bot named 'Agri-Advisor'. Your task is to generate 3 highly relevant and insightful follow-up questions based on a user's query and the bot's response. These suggestions should anticipate the user's next logical thought and guide them towards deeper knowledge.\n\n"
+        "**Rules for Generating Suggestions:**\n"
+        "1.  **Be Proactive:** Think like an expert advisor. What would a farmer or agricultural professional ask next?\n"
+        "2.  **Be Specific:** Avoid generic questions. The suggestions should be directly related to the topics, crops, or schemes mentioned in the conversation.\n"
+        "3.  **Cover Different Angles:** Try to provide suggestions that explore different facets of the topic, such as:\n"
+        "    - **Practical Application:** How can the user apply this information? (e.g., 'What is the step-by-step process to apply for this scheme?')\n"
+        "    - **Financial Implications:** What are the costs or benefits? (e.g., 'What is the estimated cost of this fertilizer per acre?')\n"
+        "    - **Deeper Dive:** Ask for more detail on a sub-topic. (e.g., 'Tell me more about the specific pests that affect the Swarna rice variety.')\n"
+        "4.  **Format:** Return the questions as a single, comma-separated string. Do not include numbers, bullet points, or any other formatting.\n\n"
+        "**Example:**\n"
+        "User Query: 'What is the PM-KISAN scheme?'\n"
+        "Bot Response: 'The PM-KISAN scheme is a government initiative that provides income support of ₹6,000 per year to eligible farmer families.'\n"
+        "Suggestions: What are the eligibility criteria for PM-KISAN?, How can I apply for the PM-KISAN scheme?, When is the next installment paid?\n\n"
+        "**Current Conversation:**\n"
         "User Query: {query}\n"
         "Bot Response: {response}\n\n"
-        "Suggestions:"
+        "**Generated Suggestions (comma-separated list):**"
     )
     models["suggestion_chain"] = suggestion_prompt | llm | StrOutputParser()
     # ---------------------
@@ -147,12 +159,10 @@ async def chat_endpoint(request: ChatRequest):
             
             final_response = translate_back(final_response, original_lang)
             
-            # --- THIS IS THE FIX ---
             # Generate suggestions only for valid agricultural responses.
             suggestion_chain = models["suggestion_chain"]
             suggestion_text = await suggestion_chain.ainvoke({"query": query, "response": final_response})
             suggestions = [s.strip() for s in suggestion_text.split(',') if s.strip()]
-            # ---------------------
 
         cleaned_response_lines = clean_and_split_for_ui(final_response)
         full_response_string = "\n".join(cleaned_response_lines)
