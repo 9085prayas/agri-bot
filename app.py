@@ -46,7 +46,6 @@ def get_classifier_chain():
         "Classification:"
     )
     return prompt | llm | StrOutputParser()
-# ----------------------------------------------------
 
 # --- RESILIENT STARTUP LOGIC ---
 if 'rag_enabled' not in st.session_state:

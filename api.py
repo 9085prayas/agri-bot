@@ -39,16 +39,16 @@ async def startup_event():
     models["rag_chain"] = build_rag_chain()
     models["agent"] = get_conversational_agent()
     
-    # --- THIS IS THE FIX ---
-    # The classifier now recognizes a 'Conversational' category.
+    # Using your new, more detailed classifier prompt
     llm = load_llm()
     prompt = PromptTemplate.from_template(
-        "Your task is to classify a user's input into one of four categories: 'Agricultural', 'Greeting', 'Conversational', 'Showing Gratitude' , 'Being Polite / Making Requests' , 'Farewells' or 'Off-topic'.\n"
+        "Your task is to classify a user's input into one of the following categories: 'Agricultural', 'Greeting', 'Conversational', 'Showing Gratitude', 'Being Polite / Making Requests', 'Farewells', 'Capability_Inquiry', or 'Off-topic'.\n"
         "Showing Gratitude includes phrases like 'thank you', 'thanks', 'I appreciate it'.\n"
         "Being Polite / Making Requests includes phrases like 'could you please', 'would you mind', 'I would like to request'.\n"
         "Farewells include 'goodbye', 'see you later', 'take care'.\n"
         "Greetings include 'hello', 'hi','Good morning','Good afternoon','Good evening'.\n"
-        "Conversational inputs are short, simple responses like 'ok', 'yes', 'no', 'got it','Alright','Of course','Definitely','Nah','No way','Not really','I don't think so','Maybe','Perhaps','Possibly','I'm not sure','We'll see','Got it','I see','Right','True' .\n"
+        "Conversational inputs are short, simple responses like 'ok', 'yes', 'no', 'got it','Alright','Of course','Definitely','Nah','No way','Not really','I don't think so','Maybe','Perhaps','Possibly','I'm not sure','We'll see','Got it','I see','Right','True','Nothing' .\n"
+        "Capability_Inquiry includes questions about what you can do, like 'what can you do?','tell me about yourself','List your features','What kind of things can you help me with?','What is your purpose?'.\n"
         "If the input is a follow-up to an agricultural topic, classify it as 'Agricultural'.\n\n"
         "Chat History:\n{chat_history}\n\n"
         "User Input: {user_input}\n\n"
@@ -88,15 +88,28 @@ async def chat_endpoint(request: ChatRequest):
         })
 
         # --- THIS IS THE FIX ---
-        # Added logic to handle the new 'Conversational' category.
-        if "greeting" in classification.lower():
-            if any(word in query.lower() for word in ['thank', 'thanks']):
-                final_response = "You're welcome! Is there anything else I can help you with regarding agriculture?"
-            else:
-                final_response = "Hello! I am Agri-Advisor. How can I assist you with your farming questions today?"
-        elif "conversational" in classification.lower():
-            final_response = "Is there anything else I can help you with?"
-        elif "off-topic" in classification.lower():
+        # Restored and updated the logic to handle all your new categories.
+        classification_lower = classification.lower()
+        
+        if "greeting" in classification_lower:
+            final_response = "Hello! I am Agri-Advisor. How can I assist you with your farming questions today?"
+        elif "showing gratitude" in classification_lower:
+            final_response = "You're welcome! Is there anything else I can help you with regarding agriculture?"
+        elif "farewells" in classification_lower:
+            final_response = "Goodbye! Feel free to reach out if you have more agricultural questions."
+        elif "conversational" in classification_lower or "being polite" in classification_lower:
+             final_response = "Of course. What would you like to know about agriculture?"
+        elif "capability_inquiry" in classification_lower:
+            # Let the main conversational agent answer based on its detailed system prompt.
+            translated_query, original_lang = translate_to_english(query)
+            agent = models["agent"]
+            agent_response = await agent.ainvoke({
+                "input": translated_query,
+                "chat_history": langchain_chat_history
+            })
+            final_response = agent_response.get("output", "Sorry, I could not find an answer.")
+            final_response = translate_back(final_response, original_lang)
+        elif "off-topic" in classification_lower:
             final_response = "I am Agri-Bot, your farming assistant. I can only answer questions related to agriculture."
         else:
             # Handle agricultural questions
