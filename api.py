@@ -39,9 +39,10 @@ async def startup_event():
     models["rag_chain"] = build_rag_chain()
     models["agent"] = get_conversational_agent()
     
-    # Using your new, more detailed classifier prompt
     llm = load_llm()
-    prompt = PromptTemplate.from_template(
+    
+    # Classifier for user intent
+    classifier_prompt = PromptTemplate.from_template(
         "Your task is to classify a user's input into one of the following categories: 'Agricultural', 'Greeting', 'Conversational', 'Showing Gratitude', 'Being Polite / Making Requests', 'Farewells', 'Capability_Inquiry', or 'Off-topic'.\n"
         "Showing Gratitude includes phrases like 'thank you', 'thanks', 'I appreciate it'.\n"
         "Being Polite / Making Requests includes phrases like 'could you please', 'would you mind', 'I would like to request'.\n"
@@ -54,7 +55,20 @@ async def startup_event():
         "User Input: {user_input}\n\n"
         "Classification:"
     )
-    models["classifier_chain"] = prompt | llm | StrOutputParser()
+    models["classifier_chain"] = classifier_prompt | llm | StrOutputParser()
+
+    # --- THIS IS THE FIX ---
+    # New chain to generate follow-up suggestions
+    suggestion_prompt = PromptTemplate.from_template(
+        "Based on the user's query and the bot's response, generate 3 short, relevant follow-up questions that the user might ask next. "
+        "Return the questions as a comma-separated list. Do not include numbers or bullet points.\n\n"
+        "User Query: {query}\n"
+        "Bot Response: {response}\n\n"
+        "Suggestions:"
+    )
+    models["suggestion_chain"] = suggestion_prompt | llm | StrOutputParser()
+    # ---------------------
+
     print("--- Models loaded successfully. API is ready. ---")
 
 def clean_and_split_for_ui(text: str) -> List[str]:
@@ -87,9 +101,8 @@ async def chat_endpoint(request: ChatRequest):
             "chat_history": langchain_chat_history
         })
 
-        # --- THIS IS THE FIX ---
-        # Restored and updated the logic to handle all your new categories.
         classification_lower = classification.lower()
+        suggestions = []
         
         if "greeting" in classification_lower:
             final_response = "Hello! I am Agri-Advisor. How can I assist you with your farming questions today?"
@@ -100,7 +113,6 @@ async def chat_endpoint(request: ChatRequest):
         elif "conversational" in classification_lower or "being polite" in classification_lower:
              final_response = "Of course. What would you like to know about agriculture?"
         elif "capability_inquiry" in classification_lower:
-            # Let the main conversational agent answer based on its detailed system prompt.
             translated_query, original_lang = translate_to_english(query)
             agent = models["agent"]
             agent_response = await agent.ainvoke({
@@ -134,7 +146,13 @@ async def chat_endpoint(request: ChatRequest):
                 final_response = rag_response
             
             final_response = translate_back(final_response, original_lang)
-        # ---------------------
+            
+            # --- THIS IS THE FIX ---
+            # Generate suggestions only for valid agricultural responses.
+            suggestion_chain = models["suggestion_chain"]
+            suggestion_text = await suggestion_chain.ainvoke({"query": query, "response": final_response})
+            suggestions = [s.strip() for s in suggestion_text.split(',') if s.strip()]
+            # ---------------------
 
         cleaned_response_lines = clean_and_split_for_ui(final_response)
         full_response_string = "\n".join(cleaned_response_lines)
@@ -142,7 +160,7 @@ async def chat_endpoint(request: ChatRequest):
         chat_histories[session_id].append({"type": "human", "content": query})
         chat_histories[session_id].append({"type": "ai", "content": full_response_string})
 
-        return {"response": full_response_string, "session_id": session_id}
+        return {"response": full_response_string, "session_id": session_id, "suggestions": suggestions}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
