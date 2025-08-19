@@ -43,9 +43,12 @@ async def startup_event():
     # The classifier now recognizes a 'Conversational' category.
     llm = load_llm()
     prompt = PromptTemplate.from_template(
-        "Your task is to classify a user's input into one of four categories: 'Agricultural', 'Greeting', 'Conversational', or 'Off-topic'.\n"
-        "Greetings include 'hello', 'hi', 'thank you'.\n"
-        "Conversational inputs are short, simple responses like 'ok', 'yes', 'no', 'got it'.\n"
+        "Your task is to classify a user's input into one of four categories: 'Agricultural', 'Greeting', 'Conversational', 'Showing Gratitude' , 'Being Polite / Making Requests' , 'Farewells' or 'Off-topic'.\n"
+        "Showing Gratitude includes phrases like 'thank you', 'thanks', 'I appreciate it'.\n"
+        "Being Polite / Making Requests includes phrases like 'could you please', 'would you mind', 'I would like to request'.\n"
+        "Farewells include 'goodbye', 'see you later', 'take care'.\n"
+        "Greetings include 'hello', 'hi','Good morning','Good afternoon','Good evening'.\n"
+        "Conversational inputs are short, simple responses like 'ok', 'yes', 'no', 'got it','Alright','Of course','Definitely','Nah','No way','Not really','I don't think so','Maybe','Perhaps','Possibly','I'm not sure','We'll see','Got it','I see','Right','True' .\n"
         "If the input is a follow-up to an agricultural topic, classify it as 'Agricultural'.\n\n"
         "Chat History:\n{chat_history}\n\n"
         "User Input: {user_input}\n\n"
