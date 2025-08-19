@@ -27,18 +27,22 @@ def get_agent():
     """Builds and returns the conversational agent with tools."""
     return get_conversational_agent()
 
-@st.cache_data
-def classify_query(user_input: str) -> str:
-    """Classifies if a query is agricultural using a cached LLM call."""
+@st.cache_resource
+def get_classifier_chain():
+    """Builds a chain to classify user queries."""
     llm = load_llm()
+    # --- THIS IS THE FIX ---
+    # The classifier now recognizes a 'Conversational' category for simple words.
     prompt = PromptTemplate.from_template(
-        "Your task is to classify if a question is related to agriculture. "
-        "Answer with only the word 'Yes' or 'No'.\n\n"
-        "Question: {user_input}\n\n"
+        "Your task is to classify a user's input into one of four categories: 'Agricultural', 'Greeting', 'Conversational', or 'Off-topic'.\n"
+        "Greetings include 'hello', 'hi', 'thank you'.\n"
+        "Conversational inputs are short, simple responses like 'ok', 'yes', 'no', 'got it'.\n"
+        "If the input is a follow-up to an agricultural topic, classify it as 'Agricultural'.\n\n"
+        "Chat History:\n{chat_history}\n\n"
+        "User Input: {user_input}\n\n"
         "Classification:"
     )
-    classifier_chain = prompt | llm | StrOutputParser()
-    return classifier_chain.invoke({"user_input": user_input})
+    return prompt | llm | StrOutputParser()
 # ----------------------------------------------------
 
 # --- RESILIENT STARTUP LOGIC ---
@@ -64,7 +68,6 @@ def render_chat_ui():
         st.success("Chat history cleared!")
         st.rerun()
 
-    # Display existing messages from history
     for msg in memory.messages:
         st.chat_message(msg.type).markdown(msg.content)
 
@@ -72,14 +75,27 @@ def render_chat_ui():
     if prompt:
         with st.spinner("Thinking..."):
             try:
-                # Classify the user's prompt first.
-                classification = classify_query(prompt)
+                chat_history = memory.messages
+                classifier_chain = get_classifier_chain()
+                classification = classifier_chain.invoke({
+                    "user_input": prompt,
+                    "chat_history": chat_history
+                })
 
-                if "no" in classification.lower():
+                # --- THIS IS THE FIX ---
+                # Added logic to handle the new 'Conversational' category.
+                if "greeting" in classification.lower():
+                    if any(word in prompt.lower() for word in ['thank', 'thanks']):
+                        final_translated_response = "You're welcome! Is there anything else I can help you with regarding agriculture?"
+                    else:
+                        final_translated_response = "Hello! I am Agri-Advisor. How can I assist you with your farming questions today?"
+                elif "conversational" in classification.lower():
+                    final_translated_response = "Is there anything else I can help you with?"
+                elif "off-topic" in classification.lower():
                     final_translated_response = "I am Agri-Bot, your farming assistant. I can only answer questions related to agriculture."
                 else:
+                    # Handle agricultural questions
                     translated_query, original_lang = translate_to_english(prompt)
-                    chat_history = memory.messages
                     
                     if st.session_state.rag_enabled:
                         rag_chain = get_rag_chain()
@@ -108,15 +124,11 @@ def render_chat_ui():
                         final_response = agent_response.get("output", "Sorry, I could not find an answer.")
 
                     final_translated_response = translate_back(final_response, original_lang)
-                
-                # --- THIS IS THE FIX ---
-                # Manually save the conversation turn to memory in all cases.
-                # This ensures the refusal message is also saved and displayed.
-                memory.add_user_message(prompt)
-                memory.add_ai_message(final_translated_response)
                 # ---------------------
                 
-                # Rerun the app to display the updated chat history
+                memory.add_user_message(prompt)
+                memory.add_ai_message(final_translated_response)
+                
                 st.rerun()
 
             except Exception as e:
